@@ -34,6 +34,8 @@ research → select → brand → rubric → design → produce → list → pub
   repeats the method on new data (ADR 0002).
 - **Public engine, private data:** shop data lives in a separate private repo
   (ADR 0003).
+- **Models run on your Claude subscription** through the Claude Agent SDK, with
+  isolated calls and no API key (ADR 0005).
 - **Etsy through its Open API only**, with compliance checks before any
   approval is requested (ADR 0004).
 

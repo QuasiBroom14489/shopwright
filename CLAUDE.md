@@ -18,6 +18,8 @@
   `CredentialStore`, never config, logs or plaintext in the database.
 - **Suggest, then confirm.** Nothing is published, repriced, spent or sent to a
   buyer without an approval event.
+- **Models run on the Claude subscription (ADR 0005)** through `ClaudeCodeProvider`:
+  isolated calls, no API key. All model access goes through `LlmProvider`.
 - The database is `@libsql/client` behind `Db` in `db.ts`: no ORM, every call async.
 - Tests run against `src/` via vitest aliases; `pnpm build` before `pnpm typecheck`.
 - Conventional commits. Record structural decisions as ADRs in `docs/decisions/`.

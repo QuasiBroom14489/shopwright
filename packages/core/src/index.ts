@@ -1,5 +1,6 @@
 export * from './config.js';
 export * from './connectors/anthropic/claude.js';
+export * from './connectors/claude-code/subscription.js';
 export * from './db.js';
 export * from './derive.js';
 export * from './errors.js';

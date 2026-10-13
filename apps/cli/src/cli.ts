@@ -2,6 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  ClaudeCodeProvider,
   ClaudeProvider,
   loadConfig,
   Research,
@@ -27,8 +28,9 @@ const USAGE = `shopwright <command>
   research replay <run>             re-score a finished run's evidence; must match byte for byte
   research like <run>               the same method on fresh evidence (e.g. when sales plateau)
 
-The model is Claude ($SHOPWRIGHT_MODEL, default claude-opus-5-5). Credentials come from
-ANTHROPIC_API_KEY, $SHOPWRIGHT_DATA/.env, or an "ant auth login" profile.
+The model is Claude ($SHOPWRIGHT_MODEL, default claude-opus-5-5), run through Claude Code on
+your Claude subscription (the "claude" login). SHOPWRIGHT_LLM=api uses an API key instead
+(ANTHROPIC_API_KEY or $SHOPWRIGHT_DATA/.env).
 `;
 
 async function main(argv: string[]): Promise<void> {
@@ -103,9 +105,12 @@ async function research(
 ): Promise<void> {
   const env = join(cfg.dataDir, '.env');
   if (existsSync(env)) process.loadEnvFile(env);
+  const model = process.env.SHOPWRIGHT_MODEL;
   const llm = args.includes('--no-llm')
     ? null
-    : new ClaudeProvider({ model: process.env.SHOPWRIGHT_MODEL });
+    : process.env.SHOPWRIGHT_LLM === 'api'
+      ? new ClaudeProvider({ model })
+      : new ClaudeCodeProvider({ model });
   const r = new Research(sw, cfg, llm);
   const list = (s: string | undefined) =>
     (s ?? '')

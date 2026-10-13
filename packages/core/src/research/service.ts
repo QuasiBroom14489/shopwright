@@ -98,7 +98,7 @@ export class Research {
     if (seeds.length === 0) throw new ConflictError('research needs at least one seed');
     if (!req.candidates && !this.llm) {
       throw new UnavailableError(
-        'no model configured: set ANTHROPIC_API_KEY or pass --candidates <file.json>',
+        'no model available: log in with `claude` (subscription) or pass --candidates <file.json>',
       );
     }
     const run = await this.sw.startRun({
