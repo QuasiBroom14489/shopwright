@@ -1,0 +1,116 @@
+#!/usr/bin/env node
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { loadConfig, Shopwright, shopDir, studioDir } from '@shopwright/core';
+import type { Run } from '@shopwright/shared';
+
+const USAGE = `shopwright <command>
+
+  init                              create the data dir ($SHOPWRIGHT_DATA, default ~/shopwright-data)
+  shop create <slug> <name…>        add a shop
+  shop list                         list shops
+  line create <shop> <slug> <niche…> add a product line (a niche) to a shop
+  line list <shop>                  list a shop's lines
+  runs [--shop <slug> | --studio]   list playbook runs, newest first
+  run <id>                          show one run
+`;
+
+async function main(argv: string[]): Promise<void> {
+  const cfg = loadConfig();
+  const [command, sub, ...rest] = argv;
+  if (!command || command === 'help' || command === '--help') {
+    console.log(USAGE);
+    return;
+  }
+  if (command === 'init') {
+    init(cfg.dataDir);
+    return;
+  }
+  const sw = await Shopwright.open(cfg.dbPath);
+  try {
+    switch (`${command} ${sub ?? ''}`.trim()) {
+      case 'shop create': {
+        const [slug, ...name] = rest;
+        if (!slug || name.length === 0) throw new Usage('shop create <slug> <name…>');
+        const shop = await sw.createShop(slug, name.join(' '), 'cli');
+        mkdirSync(shopDir(cfg, slug), { recursive: true });
+        console.log(`created ${shop.slug} (${shop.name}) → ${shopDir(cfg, slug)}`);
+        return;
+      }
+      case 'shop list':
+        for (const s of await sw.listShops()) console.log(`${s.slug}\t${s.name}`);
+        return;
+      case 'line create': {
+        const [shop, slug, ...niche] = rest;
+        if (!shop || !slug || niche.length === 0)
+          throw new Usage('line create <shop> <slug> <niche…>');
+        const line = await sw.createLine(shop, slug, niche.join(' '), 'cli');
+        console.log(`created ${shop}/${line.slug}: ${line.niche}`);
+        return;
+      }
+      case 'line list': {
+        const [shop] = rest;
+        if (!shop) throw new Usage('line list <shop>');
+        for (const l of await sw.listLines(shop)) console.log(`${l.slug}\t${l.niche}`);
+        return;
+      }
+    }
+    switch (command) {
+      case 'runs': {
+        const args = [sub, ...rest].filter(Boolean) as string[];
+        const shop = flag(args, '--shop');
+        const runs = await sw.listRuns({ shop, studio: args.includes('--studio') });
+        for (const r of runs) console.log(runLine(r));
+        return;
+      }
+      case 'run': {
+        if (!sub) throw new Usage('run <id>');
+        console.log(JSON.stringify(await sw.getRun(sub), null, 2));
+        return;
+      }
+    }
+    throw new Usage(USAGE);
+  } finally {
+    sw.close();
+  }
+}
+
+/** Lay out the data dir. It's meant to be its own private git repo (ADR 0003). */
+function init(dataDir: string): void {
+  mkdirSync(join(dataDir, 'shops'), { recursive: true });
+  mkdirSync(studioDir({ dataDir, dbPath: '' }), { recursive: true });
+  const ignore = join(dataDir, '.gitignore');
+  if (!existsSync(ignore)) {
+    writeFileSync(
+      ignore,
+      '# The database and secrets stay local even in the private repo.\n*.db\n*.db-*\n.env\n.env.*\n.DS_Store\n',
+    );
+  }
+  console.log(`data dir ready at ${dataDir}`);
+  if (!existsSync(join(dataDir, '.git')))
+    console.log(`next: git -C ${dataDir} init (keep this repo private)`);
+}
+
+function runLine(r: Run): string {
+  const when = new Date(r.startedAt).toISOString().slice(0, 16).replace('T', ' ');
+  const cost = r.costUsd ? ` $${r.costUsd.toFixed(2)}` : '';
+  return `${r.id.slice(0, 8)}  ${when}  ${r.stage.padEnd(8)} ${r.status.padEnd(9)}${cost}  ${r.summary ?? r.error ?? ''}`;
+}
+
+function flag(args: string[], name: string): string | undefined {
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : undefined;
+}
+
+class Usage extends Error {}
+
+main(process.argv.slice(2)).catch((err: unknown) => {
+  if (err instanceof Usage) {
+    console.error(
+      err.message.startsWith('shopwright') ? err.message : `usage: shopwright ${err.message}`,
+    );
+  } else {
+    console.error(err instanceof Error ? err.message : err);
+  }
+  process.exitCode = 1;
+});

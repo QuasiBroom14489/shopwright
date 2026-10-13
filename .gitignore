@@ -1,0 +1,24 @@
+# Shop data never lives in this repo. It lives in $SHOPWRIGHT_DATA
+# (default ~/shopwright-data, a separate private repo). See ADR 0003.
+data/
+shops/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.pdf
+*.zip
+config.toml
+.env
+.env.*
+
+# Build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
