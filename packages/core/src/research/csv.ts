@@ -58,11 +58,13 @@ export function toCsv(rows: (string | number)[][]): string {
   return `${rows.map((r) => r.map(cell).join(',')).join('\n')}\n`;
 }
 
-/** "1,234", "$12.50", "48,000+ results" → a number; blank or junk → null. */
+/** "1,234", "$12.50", "48,000+ results", "1.2k" → a number; blank or junk → null. */
 export function parseNumber(s: string | undefined): number | null {
   if (!s) return null;
-  const m = s.replace(/[,$\s]/g, '').match(/-?\d+(\.\d+)?/);
-  return m ? Number(m[0]) : null;
+  const m = s.replace(/[,$\s]/g, '').match(/(-?\d+(?:\.\d+)?)([km])?/i);
+  if (!m) return null;
+  const scale = { k: 1_000, m: 1_000_000 }[(m[2] ?? '').toLowerCase() as 'k' | 'm'] ?? 1;
+  return Math.round(Number(m[1]) * scale * 100) / 100;
 }
 
 export function parseFlag(s: string | undefined): boolean {

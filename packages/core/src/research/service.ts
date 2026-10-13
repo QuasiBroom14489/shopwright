@@ -60,27 +60,112 @@ const LISTING_COLUMNS = [
   'url',
 ];
 
-const COLLECT_README = (n: number) => `# Collect evidence for this research run
-
-Fill these in by hand from Etsy search in your browser. Don't use scrapers,
-extensions or scripts on etsy.com: Etsy's terms forbid it (ADR 0004).
-
-1. **listings.csv**: for each keyword, search Etsy and record the top ${n}
-   results, one row per rank. Fill in at least \`price\` and \`reviews\` (the
-   review count shown under the listing). Put \`y\` in \`bestseller\` when the
-   listing has the Bestseller badge, and in \`digital\` when it says Digital
-   download. \`title\`, \`shop\` and \`url\` are optional notes.
-2. **keywords.csv**: the result count Etsy shows for each keyword
-   (e.g. "48,000+ results" → 48000). \`suggestions\` is optional: the search
-   box's autocomplete, separated by \`;\`.
-3. **fit.csv** (optional): your own 1–5 rating of each niche.
-4. **trends/** (optional): for each keyword, open Google Trends (past 5 years,
-   your country), download "Interest over time" as CSV, and drop the file here.
-   One file can hold up to 5 keywords.
-
-Then run \`shopwright research score <run-id>\`. Rows you leave blank are
-ignored, and missing data is scored as average and listed in the report.
-`;
+/**
+ * Step-by-step instructions written next to the templates. Etsy data is
+ * collected by hand in a browser, never by scraping (ADR 0004), so this has
+ * to be clear enough to follow without reading any code.
+ */
+export function collectReadme(n: number, candidates: Candidate[], runId: string): string {
+  const etsy = (k: string) =>
+    `https://www.etsy.com/search?q=${encodeURIComponent(k).replaceAll('%20', '+')}`;
+  const trends = (ks: string[]) =>
+    `https://trends.google.com/trends/explore?date=today%205-y&geo=US&q=${ks.map(encodeURIComponent).join(',')}`;
+  const keywords = candidates.flatMap((c) => c.keywords.map((k) => k.toLowerCase()));
+  const short = runId.slice(0, 8);
+  const lines: string[] = [];
+  lines.push(
+    '# Collect evidence for this research run',
+    '',
+    `Run \`${short}\`. You'll record what Etsy shows for ${keywords.length} searches, then`,
+    'Shopwright ranks the niches from what you recorded.',
+    '',
+    '> **Do this by hand in a normal browser.** No scrapers, browser extensions, or',
+    "> scripts on etsy.com. Etsy's terms forbid them (ADR 0004).",
+    '',
+    '## Before you start',
+    '',
+    '- Use a **private/incognito window** (logged out), so your own history and',
+    "  favorites don't personalize the results.",
+    "- Leave the sort on **Relevancy** (the default) and don't add filters.",
+    '- **Skip ads.** Listings marked "Ad by …" or "Ad" are paid placements, not',
+    '  organic results. Rank 1 is the first result that is *not* an ad.',
+    '- Open the CSVs in Numbers, Excel or Google Sheets. Keep the header row and',
+    '  the column order as they are, and save as CSV.',
+    '',
+    '## 1. listings.csv (the main one)',
+    '',
+    `Each keyword already has ${n} rows with \`keyword\` and \`rank\` filled in. For each`,
+    `keyword, search it on Etsy and fill in the first ${n} non-ad results in order.`,
+    '',
+    '| Column | What to write | Where it is on the Etsy search page |',
+    '|---|---|---|',
+    "| `keyword` | Already filled in. Don't change it. | |",
+    '| `rank` | Already filled in (1 = first non-ad result). | |',
+    '| `title` | Optional. The first few words of the listing title. | Under the image |',
+    '| `shop` | Optional. The shop name. | Under the title, or on hover |',
+    '| **`price`** | **Required.** The price as a number, e.g. `4.99`. If it shows a sale price and a crossed-out price, use the **sale** price. | Under the title |',
+    "| **`reviews`** | **Required.** The number in parentheses after the stars, e.g. `(1.2k)` → `1.2k` or `1200`. This is the *shop's* review count, the best sales signal Etsy shows. No stars → `0`. | Next to the star rating |",
+    '| `bestseller` | `y` if the listing has a **Bestseller** badge, else leave blank. (Ignore "Popular now" and "Etsy\'s Pick".) | Badge on or under the listing |',
+    '| `digital` | `y` if it says **Digital download**, else leave blank. | Under the price |',
+    '| `url` | Optional. The listing link, if you want to look at it again. | |',
+    '',
+    'Example row:',
+    '',
+    '```csv',
+    'keyword,rank,title,shop,price,reviews,bestseller,digital,url',
+    'mileage log printable,1,Mileage Log Printable PDF,DemoPaperCo,3.49,2400,y,y,',
+    '```',
+    '',
+    `Short on time? Fill in the **top 5** per keyword instead of all ${n}. Blank`,
+    'rows are skipped. Fill the same depth for every keyword, so the niches are compared fairly.',
+    '',
+    '## 2. keywords.csv',
+    '',
+    'One row per keyword. `niche` and `keyword` are filled in.',
+    '',
+    '| Column | What to write |',
+    '|---|---|',
+    '| **`results`** | **Required.** The result count Etsy shows above the listings, e.g. "48,213 results" → `48213`, "1,000+ results" → `1000`. |',
+    '| `suggestions` | Optional. Type the keyword into the Etsy search box slowly and copy the autocomplete suggestions, separated by `;`. |',
+    '',
+    '## 3. fit.csv (optional, 1 minute)',
+    '',
+    "Your gut rating of each niche, `1` (no interest / can't judge quality) to `5` (I'd",
+    'use this and can tell a good one from a bad one). Notes are just for you.',
+    '',
+    '## 4. trends/ (optional, about 10 minutes)',
+    '',
+    'Google Trends shows whether interest is growing and when it peaks. Open each',
+    'link below (5 keywords per link, past 5 years, US), scroll to **Interest over',
+    'time**, click the **download** arrow (↓), and save the CSV into this',
+    '`trends/` folder. Keep the downloaded file names; any name ending in `.csv` works.',
+    '',
+  );
+  for (let i = 0; i < keywords.length; i += 5) {
+    const group = keywords.slice(i, i + 5);
+    lines.push(`- [${group.join(', ')}](${trends(group)})`);
+  }
+  lines.push('', '## Checklist: the searches', '');
+  for (const c of candidates) {
+    lines.push(`**${c.niche}**`, '');
+    for (const k of c.keywords) lines.push(`- [ ] [${k.toLowerCase()}](${etsy(k.toLowerCase())})`);
+    lines.push('');
+  }
+  lines.push(
+    "## When you're done",
+    '',
+    '```sh',
+    `node ~/shopwright/apps/cli/dist/cli.js research score ${short}`,
+    '```',
+    '',
+    'That copies these files into `evidence/` before reading them, ranks the niches,',
+    'asks Claude for 10 product ideas for the top pick, and writes `report.md`.',
+    'Missing data is scored as average and listed in the report. If something is',
+    'malformed, the run stays open, so you can fix the file and score again.',
+    '',
+  );
+  return lines.join('\n');
+}
 
 /** Research: propose niches, collect evidence, rank, and recommend (ADR 0002, 0004). */
 export class Research {
@@ -118,7 +203,7 @@ export class Research {
       if (candidates.length === 0) throw new Error('no candidates proposed');
       write(join(dir, 'evidence/candidates.json'), json({ candidates }));
       write(join(dir, 'evidence/config.json'), json(config));
-      this.writeTemplates(dir, candidates, config);
+      this.writeTemplates(dir, candidates, config, run.id);
     } catch (err) {
       await this.sw.failRun(run.id, err instanceof Error ? err.message : String(err));
       throw err;
@@ -295,7 +380,12 @@ export class Research {
     return value.ideas.slice(0, 10);
   }
 
-  private writeTemplates(dir: string, candidates: Candidate[], config: ResearchConfig): void {
+  private writeTemplates(
+    dir: string,
+    candidates: Candidate[],
+    config: ResearchConfig,
+    runId: string,
+  ): void {
     const listings: (string | number)[][] = [LISTING_COLUMNS];
     const keywords: (string | number)[][] = [['niche', 'keyword', 'results', 'suggestions']];
     for (const c of candidates) {
@@ -313,7 +403,10 @@ export class Research {
       toCsv([['niche', 'fit', 'notes'], ...candidates.map((c) => [c.niche, '', ''])]),
     );
     mkdirSync(join(dir, 'collect/trends'), { recursive: true });
-    write(join(dir, 'collect/README.md'), COLLECT_README(config.listingsPerKeyword));
+    write(
+      join(dir, 'collect/README.md'),
+      collectReadme(config.listingsPerKeyword, candidates, runId),
+    );
   }
 
   private writeReport(

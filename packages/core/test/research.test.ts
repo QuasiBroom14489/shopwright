@@ -250,3 +250,17 @@ describe('parsers', () => {
     expect(() => parseTrendsExport('nope')).toThrow(/Google Trends/);
   });
 });
+
+describe('collect instructions', () => {
+  it('reads Etsy-style counts and lists every search', async () => {
+    const { parseNumber, collectReadme } = await import('@shopwright/core');
+    expect(parseNumber('(1.2k)')).toBe(1200);
+    expect(parseNumber('48,213 results')).toBe(48213);
+    expect(parseNumber('$4.99')).toBe(4.99);
+    expect(parseNumber('')).toBeNull();
+    const md = collectReadme(10, CANDIDATES, 'abcdef1234');
+    for (const k of CANDIDATES.flatMap((c) => c.keywords))
+      expect(md).toContain(`[${k}](https://www.etsy.com/search?q=`);
+    expect(md).toContain('research score abcdef12');
+  });
+});
