@@ -1,6 +1,6 @@
 # 0004 — Etsy connector and compliance
 
-**Status:** proposed · 2026-10-13. The endpoint inventory is pending the phase 0 spike.
+**Status:** proposed · 2026-10-13. Endpoints confirmed by the spike; the terms question below blocks the research design.
 
 ## Context
 
@@ -28,9 +28,37 @@ AI-assisted items, trademarks and digital downloads.
 - **Research data from other shops is kept as evidence only.** It is never
   republished.
 
-## Open (phase 0 spike)
+## Phase 0 spike · 2026-10-13 (Open API v3 spec 3.0.0)
 
-- Which v3 endpoints and fields exist for listing search, review counts,
-  receipts and per-listing stats such as views. Where stats are missing,
-  measurement falls back to an owner-provided CSV import.
-- The API terms on rate limits, caching and AI use.
+**Public endpoints (app key only):**
+- `findAllListingsActive` (`GET /v3/application/listings/active`) supports
+  `keywords`, `sort_on` (created, price, updated, score), `min_price`/`max_price`
+  and `taxonomy_id`, with `limit` ≤ 100 plus `offset`.
+- Single listings and batches: `getListing`, `getListingsByListingIds`.
+- Reviews: `getReviewsByListing`, `getReviewsByShop` (rating, timestamps).
+- Shops: `getShop`, `findAllActiveListingsByShop`.
+- Taxonomy: `getBuyerTaxonomyNodes`, `getSellerTaxonomyNodes`.
+
+**Useful fields:**
+- `ShopListing` has `num_favorers`, `price`, `tags`, `taxonomy_id`,
+  `listing_type` (`physical` | `download` | `both`), `creation_timestamp`
+  and `original_creation_timestamp`. It has **no `views` field.**
+- `Shop` has `transaction_sold_count`, `review_count`, `review_average`,
+  `num_favorers`, `listing_active_count` and `digital_listing_count`.
+
+**OAuth2, owner's shop only:**
+- `createDraftListing`, `updateListing`, `uploadListingFile` and
+  `uploadListingImage` need `listings_w`.
+- `getShopReceipts` and the per-listing transactions endpoint need
+  `transactions_r`.
+
+**There is no stats endpoint.** Views and visits for our own listings aren't
+available through the API, so measurement uses receipts (sales) plus an
+owner-provided Shop Manager stats CSV for views.
+
+**Terms (blocking).** The current API terms page returns 403 to automated
+fetches. An archived version says the API may not be used "to collect, scan, or
+request Etsy content for analytics or machine learning" without Etsy's express
+authorization. Secondary sources say a seller app is limited to the registered
+shop. Until the live terms are read, competitor research through the API is
+**not assumed to be allowed**.
