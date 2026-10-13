@@ -7,8 +7,8 @@ When a niche stops growing, you shouldn't have to remember how you found it.
 Shopwright runs the whole process as recorded stages, so it can run again on
 fresh data, and every choice can be traced back to the evidence behind it.
 
-> Status: **phase 0**. The event-sourced core, shops, product lines and
-> playbook runs are in place. Research is next.
+> Status: **phase 1**. Research works end to end: candidates, evidence templates,
+> deterministic ranking, product ideas, replay and like. Brand, products and listings are next.
 
 ## The playbook
 
@@ -36,6 +36,18 @@ research → select → brand → rubric → design → produce → list → pub
   (ADR 0003).
 - **Etsy through its Open API only**, with compliance checks before any
   approval is requested (ADR 0004).
+
+## Research, step by step
+
+```sh
+shopwright research start --seeds "study planners,budget trackers"   # Claude proposes niches + writes CSV templates
+# fill in collect/listings.csv and keywords.csv from Etsy search by hand; drop Google Trends CSVs in collect/trends/
+shopwright research score <run>    # snapshot evidence, rank, product ideas, report.md
+shopwright research replay <run>   # must reproduce report.md byte for byte
+shopwright research like <run>     # same method, fresh evidence (when sales plateau)
+```
+
+Etsy data is collected by hand, not through the API or scraping (ADR 0004).
 
 ## Layout
 

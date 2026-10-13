@@ -1,7 +1,14 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadConfig, Shopwright, shopDir, studioDir } from '@shopwright/core';
+import {
+  ClaudeProvider,
+  loadConfig,
+  Research,
+  Shopwright,
+  shopDir,
+  studioDir,
+} from '@shopwright/core';
 import type { Run } from '@shopwright/shared';
 
 const USAGE = `shopwright <command>
@@ -13,6 +20,15 @@ const USAGE = `shopwright <command>
   line list <shop>                  list a shop's lines
   runs [--shop <slug> | --studio]   list playbook runs, newest first
   run <id>                          show one run
+
+  research start --seeds <a,b,…> [--exclude <a,b>] [--shop <slug>] [--count <n>] [--candidates <file.json>]
+                                    propose niches and write evidence templates to fill in
+  research score <run> [--no-ideas] snapshot the evidence, rank the niches, write the report
+  research replay <run>             re-score a finished run's evidence; must match byte for byte
+  research like <run>               the same method on fresh evidence (e.g. when sales plateau)
+
+The model is Claude ($SHOPWRIGHT_MODEL, default claude-opus-5-5). Credentials come from
+ANTHROPIC_API_KEY, $SHOPWRIGHT_DATA/.env, or an "ant auth login" profile.
 `;
 
 async function main(argv: string[]): Promise<void> {
@@ -28,6 +44,10 @@ async function main(argv: string[]): Promise<void> {
   }
   const sw = await Shopwright.open(cfg.dbPath);
   try {
+    if (command === 'research') {
+      await research(sw, cfg, sub, rest);
+      return;
+    }
     switch (`${command} ${sub ?? ''}`.trim()) {
       case 'shop create': {
         const [slug, ...name] = rest;
@@ -73,6 +93,74 @@ async function main(argv: string[]): Promise<void> {
   } finally {
     sw.close();
   }
+}
+
+async function research(
+  sw: Shopwright,
+  cfg: ReturnType<typeof loadConfig>,
+  sub: string | undefined,
+  args: string[],
+): Promise<void> {
+  const env = join(cfg.dataDir, '.env');
+  if (existsSync(env)) process.loadEnvFile(env);
+  const llm = args.includes('--no-llm')
+    ? null
+    : new ClaudeProvider({ model: process.env.SHOPWRIGHT_MODEL });
+  const r = new Research(sw, cfg, llm);
+  const list = (s: string | undefined) =>
+    (s ?? '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+  switch (sub) {
+    case 'start': {
+      const seeds = list(flag(args, '--seeds'));
+      if (seeds.length === 0) throw new Usage('research start --seeds <a,b,…>');
+      const count = flag(args, '--count');
+      const file = flag(args, '--candidates');
+      const candidates = file ? JSON.parse(readFileSync(file, 'utf8')).candidates : undefined;
+      const { run, dir } = await r.start({
+        seeds,
+        exclude: list(flag(args, '--exclude')),
+        shop: flag(args, '--shop'),
+        config: count ? { candidates: Number(count) } : undefined,
+        candidates,
+      });
+      console.log(
+        `research run ${run.id.slice(0, 8)} started${run.costUsd ? ` ($${run.costUsd.toFixed(2)})` : ''}`,
+      );
+      console.log(`fill in the templates: ${join(dir, 'collect')}  (see README.md there)`);
+      console.log(`then: shopwright research score ${run.id.slice(0, 8)}`);
+      return;
+    }
+    case 'score': {
+      const [id] = args;
+      if (!id) throw new Usage('research score <run>');
+      const { run } = await r.score(id, { ideas: !args.includes('--no-ideas') });
+      console.log(`${run.summary}  →  ${join(r.runDir(run), 'report.md')}`);
+      return;
+    }
+    case 'replay': {
+      const [id] = args;
+      if (!id) throw new Usage('research replay <run>');
+      const { run, identical } = await r.replay(id);
+      console.log(
+        identical ? `identical  →  ${join(r.runDir(run), 'report.md')}` : `DIFFERS: ${run.error}`,
+      );
+      if (!identical) process.exitCode = 1;
+      return;
+    }
+    case 'like': {
+      const [id] = args;
+      if (!id) throw new Usage('research like <run>');
+      const { run, dir } = await r.like(id);
+      console.log(
+        `research run ${run.id.slice(0, 8)} started like ${id}; fill in ${join(dir, 'collect')}`,
+      );
+      return;
+    }
+  }
+  throw new Usage('research start|score|replay|like …');
 }
 
 /** Lay out the data dir. It's meant to be its own private git repo (ADR 0003). */

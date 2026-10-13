@@ -16,6 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@libsql/client": "^0.18.0",
     "@shopwright/shared": "workspace:*",
     "zod": "^4.0.0"

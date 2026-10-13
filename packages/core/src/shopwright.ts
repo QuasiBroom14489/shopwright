@@ -223,6 +223,21 @@ export class Shopwright {
     await this.appendToRun(runId, 'llm.called', call);
   }
 
+  /** A full run id from a unique prefix, as the CLI prints them (8 characters). */
+  async resolveRunId(prefix: string): Promise<string> {
+    const rows = await this.db.all<{ id: string }>(
+      'SELECT id FROM runs WHERE id = ? OR id LIKE ? LIMIT 2',
+      prefix,
+      `${prefix.replace(/[%_]/g, '')}%`,
+    );
+    const exact = rows.find((r) => r.id === prefix);
+    if (exact) return exact.id;
+    if (rows.length === 0) throw new NotFoundError('run', prefix);
+    if (rows.length > 1)
+      throw new ConflictError(`run id ${prefix} is ambiguous; use more characters`);
+    return (rows[0] as { id: string }).id;
+  }
+
   async getRun(id: string): Promise<Run> {
     const row = await this.db.get<RunRow>('SELECT * FROM runs WHERE id = ?', id);
     if (!row) throw new NotFoundError('run', id);
