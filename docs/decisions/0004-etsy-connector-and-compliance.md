@@ -62,3 +62,13 @@ request Etsy content for analytics or machine learning" without Etsy's express
 authorization. Secondary sources say a seller app is limited to the registered
 shop. Until the live terms are read, competitor research through the API is
 **not assumed to be allowed**.
+
+## Decision · 2026-10-13: research runs on imported evidence
+
+Research doesn't use Etsy's API for competitor data. The Etsy evidence is
+**imported**: the owner reads Etsy search in a browser and fills in CSV
+templates that the research run generates. Google Trends data comes from its
+own CSV export. Both are snapshotted like any other evidence (ADR 0002), so
+replays stay byte-identical. In parallel the owner will apply for API access
+and describe the research use. If Etsy approves it in writing, an API source
+can be added beside the import one without changing how runs are scored.
